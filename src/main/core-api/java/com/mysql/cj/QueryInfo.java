@@ -50,6 +50,7 @@ public class QueryInfo {
     private static final String INSERT_STATEMENT = "INSERT";
     private static final String REPLACE_STATEMENT = "REPLACE";
     private static final String MULTIPLE_QUERIES_TAG = "(multiple queries)";
+    private static final String UPDATE_STATEMENT = "UPDATE";
 
     private static final String LIMIT_CLAUSE = "LIMIT";
     private static final String OFFSET_CLAUSE = "OFFSET";
@@ -72,6 +73,7 @@ public class QueryInfo {
     private int numberOfQueries = 0;
     private boolean containsOnDuplicateKeyUpdate = false;
     private boolean isRewritableWithMultiValuesClause = false;
+    private boolean isRewritableWithCaseStatement = false;
     private int valuesClauseLength = -1;
     private ArrayList<Integer> valuesEndpoints = new ArrayList<>();
     private byte[][] staticSqlParts = null;
@@ -134,6 +136,7 @@ public class QueryInfo {
         // Only INSERT and REPLACE statements support multi-values clause rewriting.
         boolean isInsert = false;
         boolean isReplace = false;
+        boolean isUpdate = false;
 
         switch (this.statementKeyword) {
             case SELECT_STATEMENT:
@@ -146,11 +149,15 @@ public class QueryInfo {
             case REPLACE_STATEMENT:
                 isReplace = true;
                 break;
+            case UPDATE_STATEMENT:
+                isUpdate = true;
+                break;
         }
 
         // Check if the statement has potential to be rewritten as a multi-values clause statement, i.e., if it is an INSERT or REPLACE statement and
         // 'rewriteBatchedStatements' is enabled.
         boolean rewritableAsMultiValues = (isInsert || isReplace) && rewriteBatchedStatements;
+        boolean rewritableWithCase = (isUpdate && rewriteBatchedStatements);
 
         // Check if should look for ON DUPLICATE KEY UPDATE clause, i.e., if it is an INSERT statement and 'dontCheckOnDuplicateKeyUpdateInSQL' is disabled.
         // 'rewriteBatchedStatements=true' cancels any value specified in 'dontCheckOnDuplicateKeyUpdateInSQL'.
@@ -423,6 +430,7 @@ public class QueryInfo {
             this.valuesEndpoints.clear();
         }
         this.isRewritableWithMultiValuesClause = rewritableAsMultiValues;
+        this.isRewritableWithCaseStatement = rewritableWithCase;
 
         this.staticSqlParts = new byte[this.numberOfPlaceholders + 1][];
         for (int i = 0, j = 0; i <= this.numberOfPlaceholders; i++) {
@@ -529,6 +537,150 @@ public class QueryInfo {
         }
     }
 
+
+    /**
+     * Constructs a {@link QueryInfo} object for update with a case statement for the specified batch count, that stems from the specified baseQueryInfo.
+     *
+     * @param baseQueryInfo
+     *            the {@link QueryInfo} instance that provides the query static parts used to create the new instance now augmented to accommodate the
+     *            case when then else statement block
+     * @param batchCount
+     *            the number of batches, i.e., the number of times case statement needs to be repeated inside the new query
+     * @param isRewritableWithCaseStatement
+     *            whether the update can be rewritten with a case statement
+     */
+    private QueryInfo(QueryInfo baseQueryInfo, int batchCount, boolean isRewritableWithCaseStatement) {
+        this.baseQueryInfo = baseQueryInfo;
+        this.encoding = baseQueryInfo.encoding;
+        this.batchCount = batchCount;
+        this.queryReturnType = baseQueryInfo.queryReturnType;
+        this.isRewritableWithMultiValuesClause = false; // Not a multi-values clause
+        this.isRewritableWithCaseStatement = isRewritableWithCaseStatement; // This update can be rewritten with a case statement
+        this.containsOnDuplicateKeyUpdate = false;
+    
+        // Parse original SQL: "UPDATE table SET col = ? WHERE id = ?"
+        String basesql = baseQueryInfo.sql.trim();
+        String upperSql = basesql.toUpperCase();
+
+        int updateIdx = upperSql.indexOf("UPDATE");
+        int setIdx = upperSql.indexOf("SET");
+        int whereIdx = upperSql.indexOf("WHERE");
+    
+        if (updateIdx != 0 || setIdx == -1 || whereIdx == -1) {
+            throw new IllegalArgumentException("Only simple UPDATE ... SET ... WHERE ... statements are supported for batching.");
+        }
+
+        String table = basesql.substring("UPDATE".length(), setIdx).trim();
+        String setClause = basesql.substring(setIdx + "SET".length(), whereIdx).trim();
+        String whereClause = basesql.substring(whereIdx + "WHERE".length()).trim();
+
+        // Parse SET clause: col1 = ?, col2 = ?
+        String[] setAssignments = setClause.split(",");
+        List<String> setColumns = new ArrayList<>();
+        for (String assignment : setAssignments) {
+            int eqIdx = assignment.indexOf('=');
+            if (eqIdx == -1) {
+                throw new IllegalArgumentException("SET clause must be in the form 'col = ?[, col2 = ? ...]'");
+            }
+            setColumns.add(assignment.substring(0, eqIdx).trim());
+        }
+    
+        // Parse WHERE clause: id1 = ? AND id2 = ?
+        String[] whereConds = whereClause.split("AND");
+        List<String> whereColumns = new ArrayList<>();
+        for (String cond : whereConds) {
+            String[] parts = cond.split("=");
+            if (parts.length != 2) {
+                throw new IllegalArgumentException("WHERE clause must be in the form 'col = ? [AND col2 = ? ...]'");
+            }
+            whereColumns.add(parts[0].trim());
+        }
+    
+        // 1. Construct Batched SQL
+        // Build SET clause with CASE WHEN ... THEN ... ELSE ... END
+        StringBuilder setBuilder = new StringBuilder();
+        for (int c = 0; c < setColumns.size(); c++) {
+            if (c > 0) setBuilder.append(", ");
+            String col = setColumns.get(c);
+            setBuilder.append(col).append(" = CASE ");
+            for (int i = 0; i < batchCount; i++) {
+                setBuilder.append("WHEN ");
+                for (int w = 0; w < whereColumns.size(); w++) {
+                    if (w > 0) setBuilder.append(" AND ");
+                    setBuilder.append(whereColumns.get(w)).append(" = ?");
+                }
+                setBuilder.append(" THEN ? ");
+            }
+            setBuilder.append("ELSE ").append(col).append(" END");
+        }
+    
+        // Build WHERE (id1, id2) IN ((?,?), (?,?), ...)
+        StringBuilder whereInBuilder = new StringBuilder();
+        if (whereColumns.size() > 1) {
+            whereInBuilder.append("(");
+            for (int w = 0; w < whereColumns.size(); w++) {
+                if (w > 0) whereInBuilder.append(", ");
+                whereInBuilder.append(whereColumns.get(w));
+            }
+            whereInBuilder.append(")");
+        } else {
+            whereInBuilder.append(whereColumns.get(0));
+        }
+        whereInBuilder.append(" IN (");
+        for (int i = 0; i < batchCount; i++) {
+            if (i > 0) whereInBuilder.append(", ");
+            if (whereColumns.size() > 1) {
+                whereInBuilder.append("(");
+                for (int w = 0; w < whereColumns.size(); w++) {
+                    if (w > 0) whereInBuilder.append(",");
+                    whereInBuilder.append("?");
+                }
+                whereInBuilder.append(")");
+            } else {
+                whereInBuilder.append("?");
+            }
+        }
+        whereInBuilder.append(")");
+    
+        // Final batched SQL
+        String batchedSql = "UPDATE " + table + " SET " + setBuilder + " WHERE " + whereInBuilder;
+        
+        // 2. Configure Placeholders
+        int placeholdersPerBatch = setColumns.size() * (whereColumns.size() + 1) + whereColumns.size();
+        this.numberOfPlaceholders = batchCount * placeholdersPerBatch;
+        this.placeholderPurposes = new ArrayList<>(this.numberOfPlaceholders);
+        for (int i = 0; i < this.numberOfPlaceholders; i++) {
+            this.placeholderPurposes.add(PlaceholderPurpose.GENERIC);
+        }
+
+        // 3. Build Static SQL Parts
+        // Split batchedSql at each '?'
+        List<Integer> questionMarkPositions = new ArrayList<>();
+        for (int i = 0; i < batchedSql.length(); i++) {
+            if (batchedSql.charAt(i) == '?') {
+                questionMarkPositions.add(i);
+            }
+        }
+        this.staticSqlParts = new byte[questionMarkPositions.size() + 1][];
+        int prev = 0;
+        for (int i = 0; i < questionMarkPositions.size(); i++) {
+            int pos = questionMarkPositions.get(i);
+            this.staticSqlParts[i] = StringUtils.getBytes(batchedSql, prev, pos - prev, this.encoding);
+            prev = pos + 1;
+        }
+        // Last part after last '?'
+        this.staticSqlParts[questionMarkPositions.size()] = StringUtils.getBytes(batchedSql, prev, batchedSql.length() - prev, this.encoding);
+
+        // 4. Set other properties
+        this.sql = batchedSql;
+        this.queryLength = batchedSql.length();
+        this.numberOfQueries = 1;
+        this.statementFirstChar = 'U';
+        this.statementKeyword = "UPDATE";
+           
+    }
+
+
     /**
      * Returns the number of queries identified in the original SQL string. Different queries are identified by the presence of the query delimiter character,
      * i.e., a semicolon.
@@ -628,6 +780,10 @@ public class QueryInfo {
         return this.isRewritableWithMultiValuesClause;
     }
 
+    public boolean isRewritableWithCaseStatement() {
+        return this.isRewritableWithCaseStatement;
+    }
+
     /**
      * Returns a {@link QueryInfo} for a multi-values INSERT/REPLACE assembled for the specified batch count, without re-parsing.
      *
@@ -680,6 +836,43 @@ public class QueryInfo {
     public String getSqlForBatch(int count) {
         QueryInfo batchInfo = getQueryInfoForBatch(count);
         return batchInfo.getSqlForBatch();
+    }
+
+    /**
+     * Returns a {@link QueryInfo} for a multi-column SET and multi-column WHERE UPDATE for the specified batch count.
+     *
+     * @param count
+     *            the number of parameter batches
+     * @return {@link QueryInfo}
+     */
+    public QueryInfo getQueryInfoForBatchedUpdate(int count) {
+        if (count == 1) {
+            return this.baseQueryInfo;
+        }
+        if (count == this.batchCount) {
+            return this;
+        }
+
+        if (!this.isRewritableWithCaseStatement) {
+            return null;
+        }
+
+        return new QueryInfo(this.baseQueryInfo, count, true);
+    }
+
+    /**
+     * Returns a preparable query for the batch count of this update {@link QueryInfo}.
+     *
+     * @return
+     *         a preparable query string with the appropriate number of placeholders
+     */
+    private String getBatchedSqlForUpdate() {
+        return this.sql;
+    }
+
+    public String getBatchedSqlForUpdate(int count) {
+        QueryInfo batchInfo = getQueryInfoForBatchedUpdate(count);
+        return batchInfo.getBatchedSqlForUpdate();
     }
 
     /**
