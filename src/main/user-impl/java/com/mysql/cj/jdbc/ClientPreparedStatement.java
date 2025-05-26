@@ -871,6 +871,14 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
                     System.out.println("numberArgsToExecute: " + numberArgsToExecute);
 
                     for (int i = 0; i < numberArgsToExecute; i++) {
+
+                        QueryBindings queryBindings = (QueryBindings) this.query.getBatchedArgs().get(i);
+                        for (int k = 0; k < queryBindings.getBindValues().length; k++) {
+                            System.out.println("numberArgsToExecute: " + i + ": " + queryBindings.getBindValues()[k].getValue());
+                        }
+                    }
+
+                    for (int i = 0; i < numberArgsToExecute; i++) {
                         if (i != 0 && i % numValuesPerBatch == 0) {
                             try {
                                 updateCountRunningTotal += batchedStatement.executeLargeUpdate();
@@ -882,12 +890,6 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
                             batchedStatement.clearParameters();
                             batchedParamIndex = 1;
 
-                        }
-                        System.out.println("numberArgsToExecute: " + i);
-                        
-                        QueryBindings queryBindings = (QueryBindings) this.query.getBatchedArgs().get(i);
-                        for (int k = 0; k < queryBindings.getBindValues().length; k++) {
-                            System.out.println("setOneBatchedParameterSet: " + i + ": " + queryBindings.getBindValues()[k].getValue());
                         }
                         
                         batchedParamIndex = setOneBatchedParameterSet(batchedStatement, batchedParamIndex, this.query.getBatchedArgs().get(batchCounter++));
