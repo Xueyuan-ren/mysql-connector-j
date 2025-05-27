@@ -167,31 +167,22 @@ class ClientPreparedStatementTest extends BaseTestCase {
         // assertEquals("value6", batchedInsertBindValues[5].getValue());
 
         // Test the batched update SQL
-        String updateSql = "UPDATE test_table SET col1 = ?, col2 = ?, col3 = ? WHERE id1 = ?";
+        String updateSql = "UPDATE test SET value = ? WHERE id = ?";
         QueryInfo updateQueryInfo = new QueryInfo(updateSql, session, encoding);
 
         ClientPreparedStatement updatestmt = new ClientPreparedStatement((JdbcConnection) this.conn, updateSql, "testdb", updateQueryInfo);
-        updatestmt.setString(1, "batch1_col1");
-        updatestmt.setString(2, "batch1_col2");
-        updatestmt.setString(3, "batch1_col3");
-        updatestmt.setString(4, "batch1_id1");
-        // updatestmt.setString(5, "batch1_id2");
+        updatestmt.setInt(1, 1);
+        updatestmt.setInt(2, 1);
         updatestmt.addBatch();
         String sql1 = ((PreparedQuery) updatestmt.getQuery()).asSql();
         System.out.println("Prepared SQL1: " + sql1);
-        updatestmt.setString(1, "batch2_col1");
-        updatestmt.setString(2, "batch2_col2");
-        updatestmt.setString(3, "batch2_col3");
-        updatestmt.setString(4, "batch2_id1");
-        // updatestmt.setString(5, "batch2_id2");
+        updatestmt.setInt(1, 2);
+        updatestmt.setInt(2, 2);
         updatestmt.addBatch();
         String sql2 = ((PreparedQuery) updatestmt.getQuery()).asSql();
         System.out.println("Prepared SQL2: " + sql2);
-        updatestmt.setString(1, "batch3_col1");
-        updatestmt.setString(2, "batch3_col2");
-        updatestmt.setString(3, "batch3_col3");
-        updatestmt.setString(4, "batch3_id1");
-        // updatestmt.setString(5, "batch3_id2");
+        updatestmt.setInt(1, 3);
+        updatestmt.setInt(2, 3);
         updatestmt.addBatch();
         String sql3 = ((PreparedQuery) updatestmt.getQuery()).asSql();
         System.out.println("Prepared SQL3: " + sql3);
