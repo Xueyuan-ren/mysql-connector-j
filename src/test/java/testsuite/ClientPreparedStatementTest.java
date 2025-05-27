@@ -4,6 +4,7 @@ import com.mysql.cj.BindValue;
 import com.mysql.cj.DataStoreMetadata;
 import com.mysql.cj.MessageBuilder;
 import com.mysql.cj.NativeSession;
+import com.mysql.cj.PreparedQuery;
 import com.mysql.cj.QueryAttributesBindings;
 import com.mysql.cj.QueryBindings;
 import com.mysql.cj.QueryInfo;
@@ -61,6 +62,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.concurrent.locks.Lock;
+
+import javax.management.Query;
 
 import testsuite.BaseQueryInterceptor;
 import testsuite.BaseTestCase;
@@ -164,25 +167,44 @@ class ClientPreparedStatementTest extends BaseTestCase {
         // assertEquals("value6", batchedInsertBindValues[5].getValue());
 
         // Test the batched update SQL
-        String updateSql = "UPDATE test_table SET col1 = ?, col2 = ? WHERE id1 = ? AND id2 = ?";
+        String updateSql = "UPDATE test_table SET col1 = ?, col2 = ?, col3 = ? WHERE id1 = ?";
         QueryInfo updateQueryInfo = new QueryInfo(updateSql, session, encoding);
 
         ClientPreparedStatement updatestmt = new ClientPreparedStatement((JdbcConnection) this.conn, updateSql, "testdb", updateQueryInfo);
-        updatestmt.setString(1, "value1");
-        updatestmt.setString(2, "value2");
-        updatestmt.setString(3, "id1_value");
-        updatestmt.setString(4, "id2_value");
+        updatestmt.setString(1, "batch1_col1");
+        updatestmt.setString(2, "batch1_col2");
+        updatestmt.setString(3, "batch1_col3");
+        updatestmt.setString(4, "batch1_id1");
+        // updatestmt.setString(5, "batch1_id2");
         updatestmt.addBatch();
-        updatestmt.setString(1, "value3");
-        updatestmt.setString(2, "value4");
-        updatestmt.setString(3, "id1_value2");
-        updatestmt.setString(4, "id2_value2");
+        String sql1 = ((PreparedQuery) updatestmt.getQuery()).asSql();
+        System.out.println("Prepared SQL1: " + sql1);
+        updatestmt.setString(1, "batch2_col1");
+        updatestmt.setString(2, "batch2_col2");
+        updatestmt.setString(3, "batch2_col3");
+        updatestmt.setString(4, "batch2_id1");
+        // updatestmt.setString(5, "batch2_id2");
         updatestmt.addBatch();
-        updatestmt.setString(1, "value5");
-        updatestmt.setString(2, "value6");
-        updatestmt.setString(3, "id1_value3");
-        updatestmt.setString(4, "id2_value3");
+        String sql2 = ((PreparedQuery) updatestmt.getQuery()).asSql();
+        System.out.println("Prepared SQL2: " + sql2);
+        updatestmt.setString(1, "batch3_col1");
+        updatestmt.setString(2, "batch3_col2");
+        updatestmt.setString(3, "batch3_col3");
+        updatestmt.setString(4, "batch3_id1");
+        // updatestmt.setString(5, "batch3_id2");
         updatestmt.addBatch();
+        String sql3 = ((PreparedQuery) updatestmt.getQuery()).asSql();
+        System.out.println("Prepared SQL3: " + sql3);
+        // List<Object> batchedArgs = updatestmt.getBatchedArgs();
+        // int batchedCount = batchedArgs.size();
+        // for (int i = 0; i < batchedCount; i++) {
+        //     QueryBindings queryBindings = (QueryBindings) batchedArgs.get(i);
+        //     for (int j = 0; j < queryBindings.getBindValues().length; j++) {
+        //         BindValue bindValue = queryBindings.getBindValues()[j];
+        //         System.out.println("updatestmt: Bind value at index " + (i*queryBindings.getBindValues().length + j) + ": " + bindValue.getValue());
+        //     }
+        // }
+        
         int[] updateBatchResults = updatestmt.executeBatch();
 
         // String batchedUpdate = updateQueryInfo.getBatchedSqlForUpdate(numBatches);

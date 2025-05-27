@@ -79,6 +79,9 @@ public class QueryInfo {
     private byte[][] staticSqlParts = null;
     private List<PlaceholderPurpose> placeholderPurposes = new ArrayList<>();
 
+    private List<String> setColumns = new ArrayList<>();
+    private List<String> whereColumns = new ArrayList<>();
+
     /**
      * Constructs a {@link QueryInfo} object for the given query or multi-query. The parsed result of this query allows to determine the location of the
      * placeholders, the query static parts and whether this query can be rewritten as a multi-values clause query.
@@ -576,38 +579,36 @@ public class QueryInfo {
 
         // Parse SET clause: col1 = ?, col2 = ?
         String[] setAssignments = setClause.split(",");
-        List<String> setColumns = new ArrayList<>();
         for (String assignment : setAssignments) {
             int eqIdx = assignment.indexOf('=');
             if (eqIdx == -1) {
                 throw new IllegalArgumentException("SET clause must be in the form 'col = ?[, col2 = ? ...]'");
             }
-            setColumns.add(assignment.substring(0, eqIdx).trim());
+            this.setColumns.add(assignment.substring(0, eqIdx).trim());
         }
     
         // Parse WHERE clause: id1 = ? AND id2 = ?
         String[] whereConds = whereClause.split("AND");
-        List<String> whereColumns = new ArrayList<>();
         for (String cond : whereConds) {
             String[] parts = cond.split("=");
             if (parts.length != 2) {
                 throw new IllegalArgumentException("WHERE clause must be in the form 'col = ? [AND col2 = ? ...]'");
             }
-            whereColumns.add(parts[0].trim());
+            this.whereColumns.add(parts[0].trim());
         }
     
         // 1. Construct Batched SQL
         // Build SET clause with CASE WHEN ... THEN ... ELSE ... END
         StringBuilder setBuilder = new StringBuilder();
-        for (int c = 0; c < setColumns.size(); c++) {
+        for (int c = 0; c < this.setColumns.size(); c++) {
             if (c > 0) setBuilder.append(", ");
-            String col = setColumns.get(c);
+            String col = this.setColumns.get(c);
             setBuilder.append(col).append(" = CASE ");
             for (int i = 0; i < batchCount; i++) {
                 setBuilder.append("WHEN ");
-                for (int w = 0; w < whereColumns.size(); w++) {
+                for (int w = 0; w < this.whereColumns.size(); w++) {
                     if (w > 0) setBuilder.append(" AND ");
-                    setBuilder.append(whereColumns.get(w)).append(" = ?");
+                    setBuilder.append(this.whereColumns.get(w)).append(" = ?");
                 }
                 setBuilder.append(" THEN ? ");
             }
@@ -616,22 +617,22 @@ public class QueryInfo {
     
         // Build WHERE (id1, id2) IN ((?,?), (?,?), ...)
         StringBuilder whereInBuilder = new StringBuilder();
-        if (whereColumns.size() > 1) {
+        if (this.whereColumns.size() > 1) {
             whereInBuilder.append("(");
-            for (int w = 0; w < whereColumns.size(); w++) {
+            for (int w = 0; w < this.whereColumns.size(); w++) {
                 if (w > 0) whereInBuilder.append(", ");
-                whereInBuilder.append(whereColumns.get(w));
+                whereInBuilder.append(this.whereColumns.get(w));
             }
             whereInBuilder.append(")");
         } else {
-            whereInBuilder.append(whereColumns.get(0));
+            whereInBuilder.append(this.whereColumns.get(0));
         }
         whereInBuilder.append(" IN (");
         for (int i = 0; i < batchCount; i++) {
             if (i > 0) whereInBuilder.append(", ");
-            if (whereColumns.size() > 1) {
+            if (this.whereColumns.size() > 1) {
                 whereInBuilder.append("(");
-                for (int w = 0; w < whereColumns.size(); w++) {
+                for (int w = 0; w < this.whereColumns.size(); w++) {
                     if (w > 0) whereInBuilder.append(",");
                     whereInBuilder.append("?");
                 }
@@ -680,6 +681,23 @@ public class QueryInfo {
            
     }
 
+    /**
+     * Returns the size of the set columns in the parsed query. This operation does not take into consideration the multiplicity of queries in the specified SQL.
+     *
+     * @return the set columns size of the parsed query
+     */
+    public int getNumberOfSetColumns() {
+        return this.setColumns.size();
+    }
+
+    /**
+     * Returns the size of the where columns in the parsed query. This operation does not take into consideration the multiplicity of queries in the specified SQL.
+     *
+     * @return the where columns size of the parsed query
+     */
+    public int getNumberOfWhereColumns() {
+        return this.whereColumns.size();
+    }
 
     /**
      * Returns the number of queries identified in the original SQL string. Different queries are identified by the presence of the query delimiter character,
