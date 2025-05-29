@@ -198,6 +198,7 @@ public enum PropertyKey {
     resultSetSizeThreshold("resultSetSizeThreshold", true), //
     retriesAllDown("retriesAllDown", true), //
     rewriteBatchedStatements("rewriteBatchedStatements", true), //
+    rewriteUpdateAndDelete("rewriteUpdateAndDelete", true), //
     rollbackOnPooledClose("rollbackOnPooledClose", true), //
     scrollTolerantForwardOnly("scrollTolerantForwardOnly", true), //
     secondsBeforeRetrySource("secondsBeforeRetrySource", true), //
