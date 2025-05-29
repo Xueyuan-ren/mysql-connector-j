@@ -1,0 +1,15 @@
+build
+build-debian-pkg
+build-rpm
+clean
+compile
+docs-generate-dynamic-docs
+docs-generate-error-mapping-table
+docs-generate-properties-table
+install
+package
+package-no-sources
+report-coverage
+test
+test-coverage
+xdevapi-docs

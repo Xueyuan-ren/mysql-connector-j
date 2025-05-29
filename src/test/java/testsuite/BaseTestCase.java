@@ -81,6 +81,7 @@ public abstract class BaseTestCase {
      * JDBC URL, initialized from com.mysql.cj.testsuite.url system property, or defaults to jdbc:mysql:///test and its connection URL.
      */
     public static String dbUrl = "jdbc:mysql:///testdb?rewriteBatchedStatements=true";
+    // public static String dbUrl = "jdbc:mysql:///testdb?rewriteUpdateAndDelete=true&rewriteBatchedStatements=true";
     public static String timeZoneFreeDbUrl = "jdbc:mysql:///testdb";
     protected static ConnectionUrl mainConnectionUrl = null;
     protected boolean isOpenSSL = false;

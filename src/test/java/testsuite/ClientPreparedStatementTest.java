@@ -88,25 +88,29 @@ class ClientPreparedStatementTest extends BaseTestCase {
     }
 
     @Test
-    void testPrepareBatchedInsertSQL() throws SQLException {
+    void testPrepareBatchedSQL() throws SQLException {
 
-        PropertySet propertySet = new DefaultPropertySet();
-        String key = "rewriteBatchedStatements";
-        boolean val = true;
-        propertySet.getProperty(key).setValue(val);
-        Map<String, String> properties = new java.util.HashMap<String, String>();
-        properties.put(key, String.valueOf(val));
-        // Provide non-null dummy values for HostInfo parameters to avoid NullPointerException
-        DatabaseUrlContainer url = new DatabaseUrlContainer() {
-            @Override
-            public String getDatabaseUrl() {
-                return "jdbc:mysql://localhost:3306/testdb";
-            }
-        };
-        HostInfo hostInfo = new HostInfo(url, "localhost", 3306, "testuser", "testpass", properties);
-        ServerSession serverSession = new TestServerSession();
-        Session session = new TestSession(hostInfo, propertySet, serverSession);
-        String encoding = "UTF-8";
+        // PropertySet propertySet = new DefaultPropertySet();
+        // String key = "rewriteBatchedStatements";
+        // boolean val = true;
+        // propertySet.getProperty(key).setValue(val);
+        // Map<String, String> properties = new java.util.HashMap<String, String>();
+        // properties.put(key, String.valueOf(val));
+        // String key2 = "rewriteUpdateAndDelete";
+        // boolean val2 = true;
+        // propertySet.getProperty(key2).setValue(val2);
+        // properties.put(key2, String.valueOf(val2));
+        // // Provide non-null dummy values for HostInfo parameters to avoid NullPointerException
+        // DatabaseUrlContainer url = new DatabaseUrlContainer() {
+        //     @Override
+        //     public String getDatabaseUrl() {
+        //         return "jdbc:mysql://localhost:3306/testdb";
+        //     }
+        // };
+        // HostInfo hostInfo = new HostInfo(url, "localhost", 3306, "testuser", "testpass", properties);
+        // ServerSession serverSession = new TestServerSession();
+        // Session session = new TestSession(hostInfo, propertySet, serverSession);
+        // String encoding = "UTF-8";
 
       
         // String sql = "INSERT INTO test_table (col1, col2) VALUES (?, ?)";
@@ -166,37 +170,43 @@ class ClientPreparedStatementTest extends BaseTestCase {
         // assertEquals("value5", batchedInsertBindValues[4].getValue());
         // assertEquals("value6", batchedInsertBindValues[5].getValue());
 
-        // Test the batched update SQL
-        String updateSql = "UPDATE test SET value = ? WHERE id = ?";
-        QueryInfo updateQueryInfo = new QueryInfo(updateSql, session, encoding);
+        // // Test the batched update SQL
+        // String updateSql = "UPDATE test SET value = ? WHERE id = ?";
+        // // QueryInfo updateQueryInfo = new QueryInfo(updateSql, session, encoding);
 
-        ClientPreparedStatement updatestmt = new ClientPreparedStatement((JdbcConnection) this.conn, updateSql, "testdb", updateQueryInfo);
-        updatestmt.setInt(1, 1);
-        updatestmt.setInt(2, 1);
-        updatestmt.addBatch();
-        String sql1 = ((PreparedQuery) updatestmt.getQuery()).asSql();
-        System.out.println("Prepared SQL1: " + sql1);
-        updatestmt.setInt(1, 2);
-        updatestmt.setInt(2, 2);
-        updatestmt.addBatch();
-        String sql2 = ((PreparedQuery) updatestmt.getQuery()).asSql();
-        System.out.println("Prepared SQL2: " + sql2);
-        updatestmt.setInt(1, 3);
-        updatestmt.setInt(2, 3);
-        updatestmt.addBatch();
-        String sql3 = ((PreparedQuery) updatestmt.getQuery()).asSql();
-        System.out.println("Prepared SQL3: " + sql3);
-        // List<Object> batchedArgs = updatestmt.getBatchedArgs();
-        // int batchedCount = batchedArgs.size();
-        // for (int i = 0; i < batchedCount; i++) {
-        //     QueryBindings queryBindings = (QueryBindings) batchedArgs.get(i);
-        //     for (int j = 0; j < queryBindings.getBindValues().length; j++) {
-        //         BindValue bindValue = queryBindings.getBindValues()[j];
-        //         System.out.println("updatestmt: Bind value at index " + (i*queryBindings.getBindValues().length + j) + ": " + bindValue.getValue());
-        //     }
-        // }
+        // PreparedStatement updatestmt = this.conn.prepareStatement(updateSql);
+        // updatestmt.setInt(1, 1);
+        // updatestmt.setInt(2, 1);
+        // updatestmt.addBatch();
+        // String sql1 = ((PreparedQuery) ((ClientPreparedStatement)updatestmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL1: " + sql1);
+        // updatestmt.setInt(1, 2);
+        // updatestmt.setInt(2, 2);
+        // updatestmt.addBatch();
+        // String sql2 = ((PreparedQuery) ((ClientPreparedStatement)updatestmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL2: " + sql2);
+        // updatestmt.setInt(1, 3);
+        // updatestmt.setInt(2, 3);
+        // updatestmt.addBatch();
+        // String sql3 = ((PreparedQuery) ((ClientPreparedStatement)updatestmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL3: " + sql3);
+        // updatestmt.setInt(1, 4);
+        // updatestmt.setInt(2, 4);
+        // updatestmt.addBatch();
+        // String sql4 = ((PreparedQuery) ((ClientPreparedStatement)updatestmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL4: " + sql4);
+        // // List<Object> batchedArgs = updatestmt.getBatchedArgs();
+        // // int batchedCount = batchedArgs.size();
+        // // for (int i = 0; i < batchedCount; i++) {
+        // //     QueryBindings queryBindings = (QueryBindings) batchedArgs.get(i);
+        // //     for (int j = 0; j < queryBindings.getBindValues().length; j++) {
+        // //         BindValue bindValue = queryBindings.getBindValues()[j];
+        // //         System.out.println("updatestmt: Bind value at index " + (i*queryBindings.getBindValues().length + j) + ": " + bindValue.getValue());
+        // //     }
+        // // }
         
-        int[] updateBatchResults = updatestmt.executeBatch();
+        // int[] updateBatchResults = updatestmt.executeBatch();
+        // System.out.println("Update batch results: " + java.util.Arrays.toString(updateBatchResults));
 
         // String batchedUpdate = updateQueryInfo.getBatchedSqlForUpdate(numBatches);
         // String batchedUpdateSql = "UPDATE test_table SET " +
@@ -206,6 +216,66 @@ class ClientPreparedStatementTest extends BaseTestCase {
         // assertNotNull(batchedUpdate);
         // assertEquals(batchedUpdateSql, batchedUpdate);
 
+        // // Test the batched delete SQL
+        // String deleteSql = "DELETE FROM test WHERE id = ?";
+        // //QueryInfo deleteQueryInfo = new QueryInfo(deleteSql, session, encoding);
+
+        // PreparedStatement deletestmt = this.conn.prepareStatement(deleteSql);
+        // deletestmt.setInt(1, 1);
+        // deletestmt.addBatch();
+        // String sql1 = ((PreparedQuery) ((ClientPreparedStatement)deletestmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL1: " + sql1);
+        // deletestmt.setInt(1, 2);
+        // deletestmt.addBatch();
+        // String sql2 = ((PreparedQuery) ((ClientPreparedStatement)deletestmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL2: " + sql2);
+        // deletestmt.setInt(1, 3);
+        // deletestmt.addBatch();
+        // String sql3 = ((PreparedQuery) ((ClientPreparedStatement)deletestmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL3: " + sql3);
+        // deletestmt.setInt(1, 4);
+        // deletestmt.addBatch();
+        // String sql4 = ((PreparedQuery) ((ClientPreparedStatement)deletestmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL4: " + sql4);
+        // // List<Object> batchedArgs = deletestmt.getBatchedArgs();
+        // // int batchedCount = batchedArgs.size();
+        // // for (int i = 0; i < batchedCount; i++) {
+        // //     QueryBindings queryBindings = (QueryBindings) batchedArgs.get(i);
+        // //     for (int j = 0; j < queryBindings.getBindValues().length; j++) {
+        // //         BindValue bindValue = queryBindings.getBindValues()[j];
+        // //         System.out.println("deletestmt: Bind value at index " + (i*queryBindings.getBindValues().length + j) + ": " + bindValue.getValue());
+        // //     }
+        // // }
+
+        // int[] deleteBatchResults = deletestmt.executeBatch();
+        // System.out.println("Delete batch results: " + java.util.Arrays.toString(deleteBatchResults));
+
+        // Test the batched insert SQL
+        String insertsql = "insert into test values (?, ?)";
+        PreparedStatement insertstmt = this.conn.prepareStatement(insertsql);
+        insertstmt.setInt(1, 7);
+        insertstmt.setInt(2, 7);
+        insertstmt.addBatch();
+        String sql1 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
+        System.out.println("Prepared SQL1: " + sql1);
+        insertstmt.setInt(1, 8);
+        insertstmt.setInt(2, 8);
+        insertstmt.addBatch();
+        String sql2 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
+        System.out.println("Prepared SQL2: " + sql2);
+        insertstmt.setInt(1, 9);
+        insertstmt.setInt(2, 9);
+        insertstmt.addBatch();
+        String sql3 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
+        System.out.println("Prepared SQL3: " + sql3);
+        insertstmt.setInt(1, 10);
+        insertstmt.setInt(2, 10);
+        insertstmt.addBatch();
+        String sql4 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
+        System.out.println("Prepared SQL4: " + sql4);
+
+        int[] insertBatchResults = insertstmt.executeBatch();
+        System.out.println("Insert batch results: " + java.util.Arrays.toString(insertBatchResults));
 
     }
 }
