@@ -366,6 +366,9 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
 
                 Message sendPacket = ((PreparedQuery) this.query).fillSendPacket(((PreparedQuery) this.query).getQueryBindings());
 
+                // String sqlInSendPacket = ((PreparedQuery) this.query).asSql();
+                // System.out.println("PreparedStatement.execute: SQL in send packet: " + sqlInSendPacket);
+
                 String oldDb = null;
 
                 if (!locallyScopedConn.getDatabase().equals(getCurrentDatabase())) {
@@ -466,6 +469,10 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
 
                         if (getQueryInfo().isRewritableWithCaseStatement()) {
                             return executeBatchWithCaseStatement(batchTimeout);
+                        }
+
+                        if (getQueryInfo().isRewritableWithInClause()) {
+                            return executeBatchWithInClause(batchTimeout);
                         }
 
                         if (!this.batchHasPlainStatements && this.query.getBatchedArgs() != null
@@ -890,7 +897,7 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
 
             try {
                 try {
-                    System.out.println("1. Executing prepareBatchedUpdateSQL");
+                    //System.out.println("1. Executing prepareBatchedUpdateSQL");
                     batchedStatement = prepareBatchedUpdateSQL(locallyScopedConn, numValuesPerBatch);
 
                     timeoutTask = startQueryTimer(batchedStatement, batchTimeout);
@@ -923,7 +930,7 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
                     // }
 
                     try {
-                        System.out.println("2. Executing executeLargeUpdate");
+                        //System.out.println("2. Executing executeLargeUpdate");
                         updateCountRunningTotal += batchedStatement.executeLargeUpdate();
                     } catch (SQLException ex) {
                         sqlEx = handleExceptionForBatch(batchCounter - 1, numValuesPerBatch, updateCounts, ex);
@@ -942,6 +949,142 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
                 try {
                     if (numValuesPerBatch > 0) {
                         batchedStatement = prepareBatchedUpdateSQL(locallyScopedConn, numValuesPerBatch);
+
+                        if (timeoutTask != null) {
+                            timeoutTask.setQueryToCancel(batchedStatement);
+                        }
+
+                        batchedParamIndex = 1;
+
+                        while (batchCounter < numBatchedArgs) {
+                            batchedParamIndex = setOneBatchedParameterSet(batchedStatement, batchedParamIndex, this.query.getBatchedArgs().get(batchCounter++));
+                        }
+
+                        try {
+                            updateCountRunningTotal += batchedStatement.executeLargeUpdate();
+                        } catch (SQLException ex) {
+                            sqlEx = handleExceptionForBatch(batchCounter - 1, numValuesPerBatch, updateCounts, ex);
+                        }
+
+                        //getBatchedGeneratedKeys(batchedStatement);
+                    }
+
+                    if (sqlEx != null) {
+                        throw SQLError.createBatchUpdateException(sqlEx, updateCounts, this.exceptionInterceptor);
+                    }
+
+                    if (numBatchedArgs > 1) {
+                        long updCount = updateCountRunningTotal > 0 ? java.sql.Statement.SUCCESS_NO_INFO : 0;
+                        for (int j = 0; j < numBatchedArgs; j++) {
+                            updateCounts[j] = updCount;
+                        }
+                    } else {
+                        updateCounts[0] = updateCountRunningTotal;
+                    }
+                    return updateCounts;
+                } finally {
+                    if (batchedStatement != null) {
+                        batchedStatement.close();
+                    }
+                }
+            } finally {
+                stopQueryTimer(timeoutTask, false, false);
+                resetCancelledState();
+            }
+        } finally {
+            connectionLock.unlock();
+        }
+    }
+
+    /**
+     * Rewrites the already prepared statement into a DELETE statement with IN clause and executes the entire batch using this new statement.
+     *
+     * @param batchTimeout
+     *            timeout for the batch execution
+     * @return update counts in the same fashion as executeBatch()
+     *
+     * @throws SQLException
+     *             if a database access error occurs or this method is called on a closed PreparedStatement
+     */
+    protected long[] executeBatchWithInClause(long batchTimeout) throws SQLException {
+        Lock connectionLock = checkClosed().getConnectionLock();
+        connectionLock.lock();
+        try {
+            JdbcConnection locallyScopedConn = this.connection;
+
+            int numBatchedArgs = this.query.getBatchedArgs().size();
+
+            int numValuesPerBatch = ((PreparedQuery) this.query).computeBatchSize(numBatchedArgs);
+
+            if (numBatchedArgs < numValuesPerBatch) {
+                numValuesPerBatch = numBatchedArgs;
+            }
+
+            JdbcPreparedStatement batchedStatement = null;
+
+            int batchedParamIndex = 1;
+            long updateCountRunningTotal = 0;
+            int numberToExecuteAsMultiValue = 0;
+            int batchCounter = 0;
+            CancelQueryTask timeoutTask = null;
+            SQLException sqlEx = null;
+
+            long[] updateCounts = new long[numBatchedArgs];
+
+            try {
+                try {
+                    //System.out.println("1. Executing prepareBatchedDeleteSQL");
+                    batchedStatement = prepareBatchedDeleteSQL(locallyScopedConn, numValuesPerBatch);
+
+                    timeoutTask = startQueryTimer(batchedStatement, batchTimeout);
+
+                    numberToExecuteAsMultiValue = numBatchedArgs < numValuesPerBatch ? numBatchedArgs : numBatchedArgs / numValuesPerBatch;
+
+                    int numberArgsToExecute = numberToExecuteAsMultiValue * numValuesPerBatch;
+
+                    for (int i = 0; i < numberArgsToExecute; i++) {
+                        if (i != 0 && i % numValuesPerBatch == 0) {
+                            try {
+                                updateCountRunningTotal += batchedStatement.executeLargeUpdate();
+                            } catch (SQLException ex) {
+                                sqlEx = handleExceptionForBatch(batchCounter - 1, numValuesPerBatch, updateCounts, ex);
+                            }
+
+                            //getBatchedGeneratedKeys(batchedStatement);
+                            batchedStatement.clearParameters();
+                            batchedParamIndex = 1;
+
+                        }
+                        
+                        setOneBatchedParameterSetForUpdate(batchedStatement, i, this.query.getBatchedArgs().get(batchCounter++));
+                    }
+
+                    // QueryBindings batchedStatementBindings = ((PreparedQuery) ((ClientPreparedStatement) batchedStatement).getQuery()).getQueryBindings();
+                    // for (int j = 0; j < batchedStatementBindings.getBindValues().length; j++) {
+                    //     BindValue bindValue = batchedStatementBindings.getBindValues()[j];
+                    //     System.out.println("setOneBatchedParameterSetForUpdate: Bind value at index " + j + ": " + bindValue.getValue());
+                    // }
+
+                    try {
+                        //System.out.println("2. Executing executeLargeUpdate");
+                        updateCountRunningTotal += batchedStatement.executeLargeUpdate();
+                    } catch (SQLException ex) {
+                        sqlEx = handleExceptionForBatch(batchCounter - 1, numValuesPerBatch, updateCounts, ex);
+                    }
+
+                    //getBatchedGeneratedKeys(batchedStatement);
+
+                    numValuesPerBatch = numBatchedArgs - batchCounter;
+                } finally {
+                    if (batchedStatement != null) {
+                        batchedStatement.close();
+                        batchedStatement = null;
+                    }
+                }
+
+                try {
+                    if (numValuesPerBatch > 0) {
+                        batchedStatement = prepareBatchedDeleteSQL(locallyScopedConn, numValuesPerBatch);
 
                         if (timeoutTask != null) {
                             timeoutTask.setQueryToCancel(batchedStatement);
@@ -1342,8 +1485,8 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
 
                 Message sendPacket = ((PreparedQuery) this.query).fillSendPacket(bindings);
 
-                String sqlInSendPacket = ((PreparedQuery) this.query).asSql();
-                System.out.println("executeUpdateInternal: SQL in send packet: " + sqlInSendPacket);
+                //String sqlInSendPacket = ((PreparedQuery) this.query).asSql();
+                //System.out.println("executeUpdateInternal: SQL in send packet: " + sqlInSendPacket);
 
                 String oldDb = null;
 
@@ -1455,6 +1598,33 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
         }
     }
 
+    /**
+     * Returns a prepared statement for the number of batched parameters, used when re-writing batch DELETEs, 
+     * also modify the QueryBindings to match the batched statement.
+     *
+     * @param localConn
+     *            the connection creating this statement
+     * @param numBatches
+     *            number of entries in a batch
+     * @return new ClientPreparedStatement
+     * @throws SQLException
+     *             if a database access error occurs or this method is called on a closed PreparedStatement
+     */
+    public ClientPreparedStatement prepareBatchedDeleteSQL(JdbcConnection localConn, int numBatches) throws SQLException {
+        Lock connectionLock = checkClosed().getConnectionLock();
+        connectionLock.lock();
+        try {
+            ClientPreparedStatement pstmt = new ClientPreparedStatement(localConn, "Rewritten batch of: " + ((PreparedQuery) this.query).getOriginalSql(),
+                    getCurrentDatabase(), getQueryInfo().getQueryInfoForBatchedDelete(numBatches));
+            pstmt.rewrittenBatchSize = numBatches;
+
+            getQueryAttributesBindings().runThroughAll(a -> ((JdbcStatement) pstmt).setAttribute(a.getName(), a.getValue()));
+
+            return pstmt;
+        } finally {
+            connectionLock.unlock();
+        }
+    }
 
     protected void setRetrieveGeneratedKeys(boolean flag) throws SQLException {
         Lock connectionLock = checkClosed().getConnectionLock();
