@@ -467,11 +467,15 @@ public class ClientPreparedStatement extends com.mysql.cj.jdbc.StatementImpl imp
                             return executeBatchWithMultiValuesClause(batchTimeout);
                         }
 
-                        if (getQueryInfo().isRewritableWithCaseStatement()) {
+                        if (this.query.getBatchedArgs() != null
+                                && this.query.getBatchedArgs().size() > 1
+                                && getQueryInfo().isRewritableWithCaseStatement()) {
                             return executeBatchWithCaseStatement(batchTimeout);
                         }
 
-                        if (getQueryInfo().isRewritableWithInClause()) {
+                        if (this.query.getBatchedArgs() != null
+                                && this.query.getBatchedArgs().size() > 1
+                                && getQueryInfo().isRewritableWithInClause()) {
                             return executeBatchWithInClause(batchTimeout);
                         }
 
