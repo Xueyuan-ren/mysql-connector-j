@@ -170,16 +170,16 @@ class ClientPreparedStatementTest extends BaseTestCase {
         // assertEquals("value5", batchedInsertBindValues[4].getValue());
         // assertEquals("value6", batchedInsertBindValues[5].getValue());
 
-        // // Test the batched update SQL
-        // String updateSql = "UPDATE test SET value = ? WHERE id = ?";
-        // // QueryInfo updateQueryInfo = new QueryInfo(updateSql, session, encoding);
+        // Test the batched update SQL
+        String updateSql = "UPDATE test SET value = ? WHERE id = ?";
+        // QueryInfo updateQueryInfo = new QueryInfo(updateSql, session, encoding);
 
-        // PreparedStatement updatestmt = this.conn.prepareStatement(updateSql);
-        // updatestmt.setInt(1, 1);
-        // updatestmt.setInt(2, 1);
-        // updatestmt.addBatch();
-        // String sql1 = ((PreparedQuery) ((ClientPreparedStatement)updatestmt).getQuery()).asSql();
-        // System.out.println("Prepared SQL1: " + sql1);
+        PreparedStatement updatestmt = this.conn.prepareStatement(updateSql);
+        updatestmt.setInt(1, 1);
+        updatestmt.setInt(2, 1);
+        updatestmt.addBatch();
+        String sql1 = ((PreparedQuery) ((ClientPreparedStatement)updatestmt).getQuery()).asSql();
+        System.out.println("Prepared SQL1: " + sql1);
         // updatestmt.setInt(1, 2);
         // updatestmt.setInt(2, 2);
         // updatestmt.addBatch();
@@ -195,17 +195,17 @@ class ClientPreparedStatementTest extends BaseTestCase {
         // updatestmt.addBatch();
         // String sql4 = ((PreparedQuery) ((ClientPreparedStatement)updatestmt).getQuery()).asSql();
         // System.out.println("Prepared SQL4: " + sql4);
-        // // List<Object> batchedArgs = updatestmt.getBatchedArgs();
-        // // int batchedCount = batchedArgs.size();
-        // // for (int i = 0; i < batchedCount; i++) {
-        // //     QueryBindings queryBindings = (QueryBindings) batchedArgs.get(i);
-        // //     for (int j = 0; j < queryBindings.getBindValues().length; j++) {
-        // //         BindValue bindValue = queryBindings.getBindValues()[j];
-        // //         System.out.println("updatestmt: Bind value at index " + (i*queryBindings.getBindValues().length + j) + ": " + bindValue.getValue());
-        // //     }
-        // // }
+        // List<Object> batchedArgs = updatestmt.getBatchedArgs();
+        // int batchedCount = batchedArgs.size();
+        // for (int i = 0; i < batchedCount; i++) {
+        //     QueryBindings queryBindings = (QueryBindings) batchedArgs.get(i);
+        //     for (int j = 0; j < queryBindings.getBindValues().length; j++) {
+        //         BindValue bindValue = queryBindings.getBindValues()[j];
+        //         System.out.println("updatestmt: Bind value at index " + (i*queryBindings.getBindValues().length + j) + ": " + bindValue.getValue());
+        //     }
+        // }
         
-        // int[] updateBatchResults = updatestmt.executeBatch();
+        int[] updateBatchResults = updatestmt.executeBatch();
         // System.out.println("Update batch results: " + java.util.Arrays.toString(updateBatchResults));
 
         // String batchedUpdate = updateQueryInfo.getBatchedSqlForUpdate(numBatches);
@@ -250,32 +250,32 @@ class ClientPreparedStatementTest extends BaseTestCase {
         // int[] deleteBatchResults = deletestmt.executeBatch();
         // System.out.println("Delete batch results: " + java.util.Arrays.toString(deleteBatchResults));
 
-        // Test the batched insert SQL
-        String insertsql = "insert into test values (?, ?)";
-        PreparedStatement insertstmt = this.conn.prepareStatement(insertsql);
-        insertstmt.setInt(1, 7);
-        insertstmt.setInt(2, 7);
-        insertstmt.addBatch();
-        String sql1 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
-        System.out.println("Prepared SQL1: " + sql1);
-        insertstmt.setInt(1, 8);
-        insertstmt.setInt(2, 8);
-        insertstmt.addBatch();
-        String sql2 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
-        System.out.println("Prepared SQL2: " + sql2);
-        insertstmt.setInt(1, 9);
-        insertstmt.setInt(2, 9);
-        insertstmt.addBatch();
-        String sql3 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
-        System.out.println("Prepared SQL3: " + sql3);
-        insertstmt.setInt(1, 10);
-        insertstmt.setInt(2, 10);
-        insertstmt.addBatch();
-        String sql4 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
-        System.out.println("Prepared SQL4: " + sql4);
+        // // Test the batched insert SQL
+        // String insertsql = "insert into test values (?, ?)";
+        // PreparedStatement insertstmt = this.conn.prepareStatement(insertsql);
+        // insertstmt.setInt(1, 7);
+        // insertstmt.setInt(2, 7);
+        // insertstmt.addBatch();
+        // String sql1 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL1: " + sql1);
+        // insertstmt.setInt(1, 8);
+        // insertstmt.setInt(2, 8);
+        // insertstmt.addBatch();
+        // String sql2 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL2: " + sql2);
+        // insertstmt.setInt(1, 9);
+        // insertstmt.setInt(2, 9);
+        // insertstmt.addBatch();
+        // String sql3 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL3: " + sql3);
+        // insertstmt.setInt(1, 10);
+        // insertstmt.setInt(2, 10);
+        // insertstmt.addBatch();
+        // String sql4 = ((PreparedQuery) ((ClientPreparedStatement)insertstmt).getQuery()).asSql();
+        // System.out.println("Prepared SQL4: " + sql4);
 
-        int[] insertBatchResults = insertstmt.executeBatch();
-        System.out.println("Insert batch results: " + java.util.Arrays.toString(insertBatchResults));
+        // int[] insertBatchResults = insertstmt.executeBatch();
+        // System.out.println("Insert batch results: " + java.util.Arrays.toString(insertBatchResults));
 
     }
 }
